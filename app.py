@@ -34,7 +34,7 @@ if uploaded_file is not None:
     st.image(image, caption='Uploaded Image', use_column_width=True)
 
     # Preprocessing
-    image_resized = image.resize((28, 28))  # Ensure correct input size
+    image_resized = image.resize((28, 28))
     img_array = np.array(image_resized) / 255.0
     img_array = np.expand_dims(img_array, axis=0)
 
@@ -46,7 +46,6 @@ if uploaded_file is not None:
         st.write(f"**Prediction:** {classes[predicted_class][1]} ({classes[predicted_class][0]})")
         st.write(f"**Confidence:** {confidence * 100:.2f}%")
 
-        # Probability chart
         st.write("### Prediction probabilities:")
         probs = prediction * 100
         class_names = [classes[i][0] for i in range(len(classes))]
@@ -57,7 +56,6 @@ if uploaded_file is not None:
         ax.set_title("Class Probabilities")
         st.pyplot(fig)
 
-        st.write("---")
         st.write("### SHAP Explanation:")
         background = np.random.rand(100, 28, 28, 3)
         masker = shap.maskers.Image("inpaint_telea", (28, 28, 3))
@@ -69,6 +67,10 @@ if uploaded_file is not None:
         st.pyplot(fig)
 
         st.write("### Improved LIME Explanation:")
+
+        def custom_segmentation(image):
+            return slic(image, n_segments=150, compactness=10, sigma=1)
+
         explainer_lime = lime.lime_image.LimeImageExplainer()
         explanation = explainer_lime.explain_instance(
             np.array(image_resized).astype('double'),
@@ -76,8 +78,7 @@ if uploaded_file is not None:
             top_labels=1,
             hide_color=0,
             num_samples=2000,
-            segmentation_fn=lambda img: slic(img, n_segments=150, compactness=10, sigma=1),
-            random_seed=42
+            segmentation_fn=custom_segmentation
         )
 
         lime_img, mask = explanation.get_image_and_mask(
@@ -85,13 +86,19 @@ if uploaded_file is not None:
             positive_only=True,
             hide_rest=False,
             num_features=10,
-            min_weight=0.01
+            min_weight=0.0
         )
 
-        fig, ax = plt.subplots(figsize=(5, 5))
-        ax.imshow(image_resized)
-        ax.imshow(mark_boundaries(lime_img, mask, color=(1, 0, 0)), alpha=0.6)
+        # Normalize mask and upscale for better visualization
+        mask_normalized = mask / mask.max()
+        lime_img_upscaled = cv2.resize(lime_img, (224, 224), interpolation=cv2.INTER_CUBIC)
+        mask_upscaled = cv2.resize(mask_normalized, (224, 224), interpolation=cv2.INTER_NEAREST)
+
+        fig, ax = plt.subplots(figsize=(6, 6))
+        ax.imshow(mark_boundaries(lime_img_upscaled, mask_upscaled))
+        im = ax.imshow(mask_upscaled, cmap='jet', alpha=0.4)
+        plt.colorbar(im, ax=ax, shrink=0.7)
         ax.axis('off')
         st.pyplot(fig)
 
-        st.success("Explanation generated!")
+        st.success("SHAP and LIME explanations generated!")
