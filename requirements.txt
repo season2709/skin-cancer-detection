@@ -1,8 +1,14 @@
 streamlit
 tensorflow
+keras
 numpy
-pillow
+pandas
 matplotlib
-scikit-image
-lime
+seaborn
+scikit-learn
+opencv-python
 shap
+lime
+scikit-image
+Pillow
+
