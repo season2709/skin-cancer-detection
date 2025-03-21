@@ -7,7 +7,7 @@ import shap
 import lime
 import lime.lime_image
 import matplotlib.pyplot as plt
-from skimage.segmentation import mark_boundaries
+from skimage.segmentation import mark_boundaries, slic
 import cv2
 
 # Load the trained model
@@ -34,7 +34,7 @@ if uploaded_file is not None:
     st.image(image, caption='Uploaded Image', use_column_width=True)
 
     # Preprocessing
-    image_resized = image.resize((28, 28))  # Your model's input size
+    image_resized = image.resize((28, 28))  # Ensure correct input size
     img_array = np.array(image_resized) / 255.0
     img_array = np.expand_dims(img_array, axis=0)
 
@@ -68,26 +68,29 @@ if uploaded_file is not None:
         shap.image_plot(shap_values.values, -img_array, show=False)
         st.pyplot(fig)
 
-        st.write("### LIME Explanation:")
+        st.write("### Improved LIME Explanation:")
         explainer_lime = lime.lime_image.LimeImageExplainer()
         explanation = explainer_lime.explain_instance(
             np.array(image_resized).astype('double'),
             classifier_fn=lambda x: model.predict(x / 255.0),
             top_labels=1,
             hide_color=0,
-            num_samples=1000
+            num_samples=2000,
+            segmentation_fn=lambda img: slic(img, n_segments=150, compactness=10, sigma=1),
+            random_seed=42
         )
 
         lime_img, mask = explanation.get_image_and_mask(
             label=explanation.top_labels[0],
-            positive_only=False,
+            positive_only=True,
             hide_rest=False,
-            num_features=5,
-            min_weight=0.0
+            num_features=10,
+            min_weight=0.01
         )
 
-        fig, ax = plt.subplots()
-        ax.imshow(mark_boundaries(lime_img, mask))
+        fig, ax = plt.subplots(figsize=(5, 5))
+        ax.imshow(image_resized)
+        ax.imshow(mark_boundaries(lime_img, mask, color=(1, 0, 0)), alpha=0.6)
         ax.axis('off')
         st.pyplot(fig)
 
