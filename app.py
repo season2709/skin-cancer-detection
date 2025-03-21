@@ -11,7 +11,7 @@ from skimage.segmentation import mark_boundaries
 import cv2
 
 # Load the trained model
-model = load_model('Skin.h5')
+model = load_model('model.h5')
 
 # Class dictionary
 classes = {
