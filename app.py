@@ -8,6 +8,8 @@ import lime
 import lime.lime_image
 import matplotlib.pyplot as plt
 from skimage.segmentation import mark_boundaries, slic
+import cv2
+
 
 
 # Load the trained model
