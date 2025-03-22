@@ -27,6 +27,14 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+st.markdown(
+    """
+    <h3 style="background: linear-gradient(90deg, #ff4b4b, #4bffb0, #ffb84d); -webkit-background-clip: text; color: transparent;">
+    🚀 Drop your images here & watch the AI detective go to work! 🕵️‍♀️
+    </h3>
+    """,
+    unsafe_allow_html=True
+)
 uploaded_files = st.file_uploader("Choose images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 if uploaded_files:
