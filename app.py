@@ -11,7 +11,7 @@ from skimage.segmentation import mark_boundaries
 import matplotlib.pyplot as plt
 
 # Load model
-model = load_model('skin_cancer_model.h5')
+model = load_model('model.h5')
 
 # Classes dictionary
 classes = {0: 'akiec', 1: 'bcc', 2: 'bkl', 3: 'df', 4: 'nv', 5: 'vasc', 6: 'mel'}
