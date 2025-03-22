@@ -1,76 +1,67 @@
 import streamlit as st
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import load_model
-import shap
-from lime import lime_image
-from skimage.segmentation import mark_boundaries
 import matplotlib.pyplot as plt
-import cv2
+from skimage.segmentation import mark_boundaries
 from PIL import Image
+import lime
+from lime import lime_image
+from tensorflow.keras.models import load_model
 
 # Load the trained model
 model = load_model("model.h5")
 
-# Class labels
-classes = ["nv", "mel", "bkl", "bcc", "akiec", "vasc", "df"]
+# Function to preprocess the image
+def preprocess_image(image):
+    image = image.resize((224, 224))
+    image = np.array(image) / 255.0
+    image = np.expand_dims(image, axis=0)
+    return image
 
-# Streamlit UI
-st.title("Skin Cancer Detection using CNN")
+# Function for prediction
+def predict(image):
+    prediction = model.predict(image)
+    class_names = ["Melanoma", "Nevus", "Seborrheic Keratosis"]
+    return class_names[np.argmax(prediction)], prediction
 
-st.write("Upload skin lesion images (PNG/JPG) for classification.")
+# Function for LIME explanation
+def explain_with_lime(image):
+    explainer = lime_image.LimeImageExplainer()
+    
+    def model_predict(imgs):
+        imgs = np.array([preprocess_image(Image.fromarray((img * 255).astype(np.uint8))).reshape(224,224,3) for img in imgs])
+        return model.predict(imgs)
 
-uploaded_files = st.file_uploader("Choose images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+    explanation = explainer.explain_instance(
+        np.array(image) / 255.0,
+        model_predict,
+        top_labels=1,
+        hide_color=0,
+        num_samples=1000
+    )
 
-if uploaded_files:
-    st.subheader("Results")
+    temp, mask = explanation.get_image_and_mask(
+        explanation.top_labels[0], positive_only=True, num_features=5, hide_rest=False
+    )
+    return temp, mask
 
-    # SHAP explainer
-    explainer = shap.GradientExplainer(model, np.zeros((1, 28, 28, 3)))
-    explainer_lime = lime_image.LimeImageExplainer()
+st.title("Skin Cancer Detection")
 
-    for idx, uploaded_file in enumerate(uploaded_files):
-        image = Image.open(uploaded_file).convert("RGB")
-        image_np = np.array(image)
+uploaded_file = st.file_uploader("Upload a skin lesion image", type=["jpg", "jpeg", "png"])
 
-        st.write(f"### Image {idx+1}")
-        st.image(image, caption="Uploaded Image", width=250)
+if uploaded_file is not None:
+    image = Image.open(uploaded_file).convert("RGB")
+    st.image(image, caption="Uploaded Image", use_column_width=True)
 
-        # Preprocess image
-        img_resized = cv2.resize(image_np, (28, 28))
-        img_array = np.expand_dims(img_resized, axis=0) / 255.0
+    preprocessed_img = preprocess_image(image)
+    prediction_class, prediction_prob = predict(preprocessed_img)
 
-        # Prediction
-        prediction = model.predict(img_array)[0]
-        predicted_class = np.argmax(prediction)
-        class_name = classes[predicted_class]
-        confidence = prediction[predicted_class] * 100
+    st.write(f"### Prediction: {prediction_class}")
+    st.write(f"### Confidence: {np.max(prediction_prob) * 100:.2f}%")
 
-        st.write(f"**Predicted Class:** {class_name}")
-        st.write(f"**Confidence:** {confidence:.2f}%")
+    lime_img, lime_mask = explain_with_lime(image)
+    lime_boundary_img = mark_boundaries(lime_img, lime_mask)
+    lime_boundary_img = (lime_boundary_img * 255).astype(np.uint8)
 
-        # SHAP Explanation
-        st.write("**SHAP Explanation:**")
-        shap_values = explainer.shap_values(img_array)
-        shap.image_plot(shap_values, img_array, show=False)
-        st.pyplot(plt.gcf())
-        plt.clf()
-
-        # LIME Explanation
-        st.write("**LIME Explanation:**")
-        explanation = explainer_lime.explain_instance(
-            img_resized.astype('double'),
-            classifier_fn=lambda x: model.predict(x / 255.0),
-            top_labels=1,
-            hide_color=0,
-            num_samples=500
-        )
-        lime_img, lime_mask = explanation.get_image_and_mask(
-            explanation.top_labels[0],
-            positive_only=False,
-            num_features=5,
-            hide_rest=False
-        )
-        st.image(mark_boundaries(lime_img, lime_mask), caption="LIME Explanation")
-
-        st.markdown("---")
+    st.write("## LIME Explanation:")
+    st.image(lime_boundary_img, caption="LIME Explanation", use_column_width=True)
