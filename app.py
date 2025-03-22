@@ -49,6 +49,27 @@ st.markdown("""
 
 uploaded_files = st.file_uploader("Choose images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
+st.markdown("""
+    <style>
+    .colorful-subheader {
+        font-size: 30px;
+        font-weight: bold;
+        background: linear-gradient(90deg, #ff4b4b, #ffb84d, #4bffb0, #4b86f5);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: gradientShift 3s ease infinite;
+        text-align: center;
+        padding: 10px 0;
+    }
+
+    @keyframes gradientShift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 if uploaded_files:
     st.subheader("Results")
 
