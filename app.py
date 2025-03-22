@@ -20,6 +20,13 @@ st.title("🌟 Skin Cancer Detection 🌟")
 
 st.write("Upload skin lesion images (PNG/JPG/JPEG) for classification.")
 
+st.markdown(
+    """
+    <h3 style="color:#ff4b4b;">📸✨ Upload your <span style="color:#4bffb0;">skin lesion images</span> and watch the <span style="color:#ffb84d;">magic</span> happen! 🌟</h3>
+    """,
+    unsafe_allow_html=True
+)
+
 uploaded_files = st.file_uploader("Choose images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 if uploaded_files:
