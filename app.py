@@ -22,19 +22,31 @@ st.write("Upload skin lesion images (PNG/JPG/JPEG) for classification.")
 
 st.markdown(
     """
-    <h3 style="color:#ff4b4b;">📸✨ Upload your <span style="color:#4bffb0;">skin lesion images</span> and watch the <span style="color:#ffb84d;">magic</span> happen! 🌟</h3>
-    """,
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    """
     <h3 style="background: linear-gradient(90deg, #ff4b4b, #4bffb0, #ffb84d); -webkit-background-clip: text; color: transparent;">
-    🚀 Drop your images here & watch the AI detective go to work! 🕵️‍♀️
+   🩺 Upload your skin images — let's get you a quick checkup! 🩺
     </h3>
     """,
     unsafe_allow_html=True
 )
+
+st.markdown("""
+    <style>
+    /* Style the file uploader box */
+    .stFileUploader > div > div {
+        border: 2px dashed #ff4b4b;
+        background: linear-gradient(135deg, #ffb84d, #4bffb0, #4b86f5);
+        padding: 20px;
+        border-radius: 20px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        transition: 0.3s ease;
+    }
+    .stFileUploader > div > div:hover {
+        box-shadow: 0 0 20px rgba(0,0,0,0.3);
+        transform: scale(1.02);
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 uploaded_files = st.file_uploader("Choose images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 if uploaded_files:
