@@ -74,7 +74,7 @@ if uploaded_files:
         lime_img_normalized = lime_img / 255.0  # ensure lime image is in [0,1]
         lime_boundary_img = mark_boundaries(lime_img_normalized, lime_mask)
         lime_boundary_img = np.clip(lime_boundary_img, 0, 1)  # clip just in case
-        st.image(lime_boundary_img, caption="LIME Explanation")
+        st.image(lime_boundary_img, caption="LIME Explanation", width=250)
 
 
         st.markdown("---")
