@@ -1,76 +1,76 @@
 import streamlit as st
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 import shap
-import lime
-import lime.lime_image
-import cv2
+from lime import lime_image
 from skimage.segmentation import mark_boundaries
 import matplotlib.pyplot as plt
+import cv2
+from PIL import Image
 
-# Load model
-model = load_model('model.h5')
+# Load the trained model
+model = load_model("model.h5")
 
-# Classes dictionary
-classes = {0: 'akiec', 1: 'bcc', 2: 'bkl', 3: 'df', 4: 'nv', 5: 'vasc', 6: 'mel'}
-
-# Preprocessing function
-def preprocess_image(image):
-    image = cv2.resize(image, (28, 28))
-    image = image / 255.0
-    return image.reshape(1, 28, 28, 3)
-
-# SHAP explanation function
-def explain_shap(img):
-    background = np.random.rand(100, 28, 28, 3)
-    explainer = shap.Explainer(model.predict, background)
-    shap_values = explainer(img)
-    shap.image_plot(shap_values.values, img)
-
-# LIME explanation function
-def explain_lime(img):
-    explainer = lime.lime_image.LimeImageExplainer()
-    explanation = explainer.explain_instance(
-        img[0].astype('double'), classifier_fn=model.predict, top_labels=1, num_samples=1000
-    )
-    lime_img, mask = explanation.get_image_and_mask(
-        explanation.top_labels[0], positive_only=True, hide_rest=False
-    )
-    fig, ax = plt.subplots()
-    ax.imshow(mark_boundaries(lime_img, mask.astype(int)))
-    ax.axis('off')
-    st.pyplot(fig)
+# Class labels
+classes = ["nv", "mel", "bkl", "bcc", "akiec", "vasc", "df"]
 
 # Streamlit UI
-st.title('Skin Cancer Detection')
+st.title("Skin Cancer Detection using CNN")
 
-uploaded_files = st.file_uploader("Upload one or more skin lesion images", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+st.write("Upload skin lesion images (PNG/JPG) for classification.")
+
+uploaded_files = st.file_uploader("Choose images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 if uploaded_files:
-    for uploaded_file in uploaded_files:
-        st.write(f"### Results for: {uploaded_file.name}")
-        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-        img = cv2.imdecode(file_bytes, 1)
-        st.image(img, caption="Uploaded Image", use_column_width=True)
+    st.subheader("Results")
 
-        processed_img = preprocess_image(img)
-        prediction = model.predict(processed_img)[0]
-        predicted_class = classes[np.argmax(prediction)]
+    # SHAP explainer
+    explainer = shap.GradientExplainer(model, np.zeros((1, 28, 28, 3)))
+    explainer_lime = lime_image.LimeImageExplainer()
 
-        st.write(f"**Prediction:** {predicted_class}")
-        st.write(f"**Confidence:** {np.max(prediction) * 100:.2f}%")
+    for idx, uploaded_file in enumerate(uploaded_files):
+        image = Image.open(uploaded_file).convert("RGB")
+        image_np = np.array(image)
 
-        st.write("#### SHAP Explanation")
-        fig_shap, ax_shap = plt.subplots()
-        background = np.random.rand(100, 28, 28, 3)
-        explainer = shap.Explainer(model.predict, background)
-        shap_values = explainer(processed_img)
-        shap.image_plot(shap_values.values, processed_img)
+        st.write(f"### Image {idx+1}")
+        st.image(image, caption="Uploaded Image", width=250)
+
+        # Preprocess image
+        img_resized = cv2.resize(image_np, (28, 28))
+        img_array = np.expand_dims(img_resized, axis=0) / 255.0
+
+        # Prediction
+        prediction = model.predict(img_array)[0]
+        predicted_class = np.argmax(prediction)
+        class_name = classes[predicted_class]
+        confidence = prediction[predicted_class] * 100
+
+        st.write(f"**Predicted Class:** {class_name}")
+        st.write(f"**Confidence:** {confidence:.2f}%")
+
+        # SHAP Explanation
+        st.write("**SHAP Explanation:**")
+        shap_values = explainer.shap_values(img_array)
+        shap.image_plot(shap_values, img_array, show=False)
         st.pyplot(plt.gcf())
+        plt.clf()
 
-        st.write("#### LIME Explanation")
-        explain_lime(processed_img)
+        # LIME Explanation
+        st.write("**LIME Explanation:**")
+        explanation = explainer_lime.explain_instance(
+            img_resized.astype('double'),
+            classifier_fn=lambda x: model.predict(x / 255.0),
+            top_labels=1,
+            hide_color=0,
+            num_samples=500
+        )
+        lime_img, lime_mask = explanation.get_image_and_mask(
+            explanation.top_labels[0],
+            positive_only=False,
+            num_features=5,
+            hide_rest=False
+        )
+        st.image(mark_boundaries(lime_img, lime_mask), caption="LIME Explanation")
 
         st.markdown("---")
