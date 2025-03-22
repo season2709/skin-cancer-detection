@@ -1,106 +1,76 @@
 import streamlit as st
 import numpy as np
+import pandas as pd
 import tensorflow as tf
-from keras.models import load_model
-from PIL import Image
+from tensorflow.keras.models import load_model
 import shap
 import lime
 import lime.lime_image
-import matplotlib.pyplot as plt
-from skimage.segmentation import mark_boundaries, slic
 import cv2
+from skimage.segmentation import mark_boundaries
+import matplotlib.pyplot as plt
 
+# Load model
+model = load_model('skin_cancer_model.h5')
 
+# Classes dictionary
+classes = {0: 'akiec', 1: 'bcc', 2: 'bkl', 3: 'df', 4: 'nv', 5: 'vasc', 6: 'mel'}
 
-# Load the trained model
-model = load_model('model.h5')
+# Preprocessing function
+def preprocess_image(image):
+    image = cv2.resize(image, (28, 28))
+    image = image / 255.0
+    return image.reshape(1, 28, 28, 3)
 
-# Class dictionary
-classes = {
-    4: ('nv', 'Melanocytic nevi'),
-    6: ('mel', 'Melanoma'),
-    2: ('bkl', 'Benign keratosis-like lesions'),
-    1: ('bcc', 'Basal cell carcinoma'),
-    5: ('vasc', 'Pyogenic granulomas and hemorrhage'),
-    0: ('akiec', 'Actinic keratoses and intraepithelial carcinomae'),
-    3: ('df', 'Dermatofibroma')
-}
+# SHAP explanation function
+def explain_shap(img):
+    background = np.random.rand(100, 28, 28, 3)
+    explainer = shap.Explainer(model.predict, background)
+    shap_values = explainer(img)
+    shap.image_plot(shap_values.values, img)
 
-st.title("Skin Cancer Detection")
-st.write("Upload a skin lesion image for prediction and explanation.")
+# LIME explanation function
+def explain_lime(img):
+    explainer = lime.lime_image.LimeImageExplainer()
+    explanation = explainer.explain_instance(
+        img[0].astype('double'), classifier_fn=model.predict, top_labels=1, num_samples=1000
+    )
+    lime_img, mask = explanation.get_image_and_mask(
+        explanation.top_labels[0], positive_only=True, hide_rest=False
+    )
+    fig, ax = plt.subplots()
+    ax.imshow(mark_boundaries(lime_img, mask.astype(int)))
+    ax.axis('off')
+    st.pyplot(fig)
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+# Streamlit UI
+st.title('Skin Cancer Detection')
 
-if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert('RGB')
-    st.image(image, caption='Uploaded Image', use_column_width=True)
+uploaded_files = st.file_uploader("Upload one or more skin lesion images", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
-    # Preprocessing
-    image_resized = image.resize((28, 28))
-    img_array = np.array(image_resized) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+        st.write(f"### Results for: {uploaded_file.name}")
+        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+        img = cv2.imdecode(file_bytes, 1)
+        st.image(img, caption="Uploaded Image", use_column_width=True)
 
-    if st.button("Predict"):
-        prediction = model.predict(img_array)[0]
-        predicted_class = np.argmax(prediction)
-        confidence = prediction[predicted_class]
+        processed_img = preprocess_image(img)
+        prediction = model.predict(processed_img)[0]
+        predicted_class = classes[np.argmax(prediction)]
 
-        st.write(f"**Prediction:** {classes[predicted_class][1]} ({classes[predicted_class][0]})")
-        st.write(f"**Confidence:** {confidence * 100:.2f}%")
+        st.write(f"**Prediction:** {predicted_class}")
+        st.write(f"**Confidence:** {np.max(prediction) * 100:.2f}%")
 
-        st.write("### Prediction probabilities:")
-        probs = prediction * 100
-        class_names = [classes[i][0] for i in range(len(classes))]
-
-        fig, ax = plt.subplots()
-        ax.bar(class_names, probs, color='skyblue')
-        ax.set_ylabel("Probability (%)")
-        ax.set_title("Class Probabilities")
-        st.pyplot(fig)
-
-        st.write("### SHAP Explanation:")
+        st.write("#### SHAP Explanation")
+        fig_shap, ax_shap = plt.subplots()
         background = np.random.rand(100, 28, 28, 3)
-        masker = shap.maskers.Image("inpaint_telea", (28, 28, 3))
-        explainer = shap.Explainer(model.predict, masker)
-        shap_values = explainer(img_array)
+        explainer = shap.Explainer(model.predict, background)
+        shap_values = explainer(processed_img)
+        shap.image_plot(shap_values.values, processed_img)
+        st.pyplot(plt.gcf())
 
-        fig, ax = plt.subplots()
-        shap.image_plot(shap_values.values, -img_array, show=False)
-        st.pyplot(fig)
+        st.write("#### LIME Explanation")
+        explain_lime(processed_img)
 
-        st.write("### Improved LIME Explanation:")
-
-        def custom_segmentation(image):
-            return slic(image, n_segments=150, compactness=10, sigma=1)
-
-        explainer_lime = lime.lime_image.LimeImageExplainer()
-        explanation = explainer_lime.explain_instance(
-            np.array(image_resized).astype('double'),
-            classifier_fn=lambda x: model.predict(x / 255.0),
-            top_labels=1,
-            hide_color=0,
-            num_samples=2000,
-            segmentation_fn=custom_segmentation
-        )
-
-        lime_img, mask = explanation.get_image_and_mask(
-            label=explanation.top_labels[0],
-            positive_only=True,
-            hide_rest=False,
-            num_features=10,
-            min_weight=0.0
-        )
-
-        # Normalize mask and upscale for better visualization
-        mask_normalized = mask / mask.max()
-        lime_img_upscaled = cv2.resize(lime_img, (224, 224), interpolation=cv2.INTER_CUBIC)
-        mask_upscaled = cv2.resize(mask_normalized, (224, 224), interpolation=cv2.INTER_NEAREST)
-
-        fig, ax = plt.subplots(figsize=(6, 6))
-        ax.imshow(mark_boundaries(lime_img_upscaled, mask_upscaled))
-        im = ax.imshow(mask_upscaled, cmap='jet', alpha=0.4)
-        plt.colorbar(im, ax=ax, shrink=0.7)
-        ax.axis('off')
-        st.pyplot(fig)
-
-        st.success("SHAP and LIME explanations generated!")
+        st.markdown("---")
