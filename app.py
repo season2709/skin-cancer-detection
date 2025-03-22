@@ -22,11 +22,14 @@ st.write("Upload skin lesion images (PNG/JPG) for classification.")
 
 uploaded_files = st.file_uploader("Choose images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
+def preprocess_image(image_np):
+    img_resized = cv2.resize(image_np, (28, 28))
+    img_array = np.expand_dims(img_resized, axis=0) / 255.0
+    return img_array
+
 if uploaded_files:
     st.subheader("Results")
 
-    # SHAP explainer
-    explainer = shap.GradientExplainer(model, np.zeros((1, 28, 28, 3)))
     explainer_lime = lime_image.LimeImageExplainer()
 
     for idx, uploaded_file in enumerate(uploaded_files):
@@ -36,11 +39,8 @@ if uploaded_files:
         st.write(f"### Image {idx+1}")
         st.image(image, caption="Uploaded Image", width=250)
 
-        # Preprocess image
-        img_resized = cv2.resize(image_np, (28, 28))
-        img_array = np.expand_dims(img_resized, axis=0) / 255.0
-
-        # Prediction
+        # Preprocess image and predict
+        img_array = preprocess_image(image_np)
         prediction = model.predict(img_array)[0]
         predicted_class = np.argmax(prediction)
         class_name = classes[predicted_class]
@@ -51,7 +51,10 @@ if uploaded_files:
 
         # SHAP Explanation
         st.write("**SHAP Explanation:**")
-        shap_values = explainer.shap_values(img_array)
+        # Use SHAP DeepExplainer for TensorFlow/Keras models
+        background = np.zeros((1, 28, 28, 3))
+        shap_explainer = shap.DeepExplainer(model, background)
+        shap_values = shap_explainer.shap_values(img_array)
         shap.image_plot(shap_values, img_array, show=False)
         st.pyplot(plt.gcf())
         plt.clf()
@@ -59,8 +62,10 @@ if uploaded_files:
         # LIME Explanation
         st.write("**LIME Explanation:**")
         explanation = explainer_lime.explain_instance(
-            img_resized.astype('double'),
-            classifier_fn=lambda x: model.predict(x / 255.0),
+            image_np.astype('double'),
+            classifier_fn=lambda x: model.predict(
+                np.array([cv2.resize(i, (28, 28)) / 255.0 for i in x])
+            ),
             top_labels=1,
             hide_color=0,
             num_samples=500
@@ -71,10 +76,9 @@ if uploaded_files:
             num_features=5,
             hide_rest=False
         )
-        lime_img_normalized = lime_img / 255.0  # ensure lime image is in [0,1]
+        lime_img_normalized = lime_img / 255.0  # normalize
         lime_boundary_img = mark_boundaries(lime_img_normalized, lime_mask)
-        lime_boundary_img = np.clip(lime_boundary_img, 0, 1)  # clip just in case
+        lime_boundary_img = np.clip(lime_boundary_img, 0, 1)
         st.image(lime_boundary_img, caption="LIME Explanation", width=250)
-
 
         st.markdown("---")
