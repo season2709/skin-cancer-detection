@@ -71,7 +71,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 if uploaded_files:
-    st.subheader("Results")
+    st.markdown('<div class="colorful-subheader">🎨 Results are Ready! 🎉</div>', unsafe_allow_html=True)
 
     # SHAP explainer
     explainer = shap.GradientExplainer(model, np.zeros((1, 28, 28, 3)))
