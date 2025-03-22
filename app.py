@@ -81,6 +81,5 @@ if uploaded_files:
 
 
         st.markdown("---")
-
-st.balloons()
-st.success("🎉 Mission Completed!")
+        st.balloons()
+        st.success("🎉 Mission Completed!")
